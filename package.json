@@ -1,0 +1,6 @@
+{
+  "name": "dpga-league",
+  "private": true,
+  "description": "D-PGA 스크린대회 경기현황",
+  "engines": { "node": ">=18" }
+}
