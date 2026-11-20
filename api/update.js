@@ -5,6 +5,16 @@ const TEAMS = {
   D: ['팀시온', '팀지수', '팀경일', '팀문석', '팀태형'],
   P: ['팀가영', '팀대훈', '팀선우', '팀근규', '팀재호'],
 };
+const PO = ['WC', 'SF', 'F'];
+const TBD = '미정';
+const ALL = [...TEAMS.D, ...TEAMS.P];
+// League matches: two different teams of that league. Playoffs: any team or '미정' (to be decided).
+function validTeams(lg, a, b) {
+  if (TEAMS[lg]) return TEAMS[lg].includes(a) && TEAMS[lg].includes(b) && a !== b;
+  if (!PO.includes(lg)) return false;
+  const ok = (t) => t === TBD || ALL.includes(t);
+  return ok(a) && ok(b) && (a !== b || a === TBD);
+}
 const MAX_FAILS = 5;
 const LOCK_MS = 10 * 60 * 1000;
 
@@ -43,15 +53,24 @@ module.exports = async (req, res) => {
       if (![null, 'A', 'B', 'D'].includes(r)) return res.status(400).json({ error: '잘못된 결과 값' });
       const [before] = await sb(`league_matches?id=eq.${encodeURIComponent(body.id)}&select=*`);
       if (!before) return res.status(404).json({ error: '없는 경기예요. 새로고침해 주세요' });
+      if (r && (before.a === TBD || before.b === TBD)) return res.status(400).json({ error: '팀이 정해진 뒤에 결과를 입력해 주세요' });
       const [after] = await sb(`league_matches?id=eq.${encodeURIComponent(body.id)}`, { method: 'PATCH', prefer: 'return=representation', body: { r, updated_at: now } });
       await sb('league_log', { method: 'POST', body: { match_id: before.id, action: 'result', before, after } });
     } else if (body.op === 'add') {
       const { lg, a, b, date, time } = body;
-      if (!TEAMS[lg] || !TEAMS[lg].includes(a) || !TEAMS[lg].includes(b) || a === b) return res.status(400).json({ error: '리그와 팀을 다시 골라 주세요' });
+      if (!validTeams(lg, a, b)) return res.status(400).json({ error: '리그와 팀을 다시 골라 주세요' });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !/^[0-2]\d:[0-5]\d$/.test(time || '')) return res.status(400).json({ error: '날짜와 시간을 확인해 주세요' });
       const id = 'm' + Date.now().toString(36);
       const [after] = await sb('league_matches', { method: 'POST', prefer: 'return=representation', body: { id, lg, a, b, date, time, r: null } });
       await sb('league_log', { method: 'POST', body: { match_id: id, action: 'add', after } });
+    } else if (body.op === 'teams') {
+      const [before] = await sb(`league_matches?id=eq.${encodeURIComponent(body.id)}&select=*`);
+      if (!before) return res.status(404).json({ error: '없는 경기예요. 새로고침해 주세요' });
+      if (!PO.includes(before.lg)) return res.status(400).json({ error: '리그 경기는 팀을 바꿀 수 없어요' });
+      if (!validTeams(before.lg, body.a, body.b)) return res.status(400).json({ error: '팀을 다시 골라 주세요' });
+      const r = before.a === body.a && before.b === body.b ? before.r : null;
+      const [after] = await sb(`league_matches?id=eq.${encodeURIComponent(body.id)}`, { method: 'PATCH', prefer: 'return=representation', body: { a: body.a, b: body.b, r, updated_at: now } });
+      await sb('league_log', { method: 'POST', body: { match_id: before.id, action: 'teams', before, after } });
     } else if (body.op === 'delete') {
       const [before] = await sb(`league_matches?id=eq.${encodeURIComponent(body.id)}`, { method: 'DELETE', prefer: 'return=representation' });
       if (before) await sb('league_log', { method: 'POST', body: { match_id: before.id, action: 'delete', before } });

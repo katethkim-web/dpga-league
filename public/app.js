@@ -4,7 +4,17 @@ var TEAMS = {
   D:[{name:'팀시온',members:['이병주','신대섭','최시온']},{name:'팀지수',members:['김진혁','서인원','신지수']},{name:'팀경일',members:['이후탁','현강환','김경일']},{name:'팀문석',members:['오지훈','정동헌','최문석']},{name:'팀태형',members:['한상욱','김선민','김태형']}],
   P:[{name:'팀가영',members:['이명운','안경주','김가영']},{name:'팀대훈',members:['문성록','염준호','이대훈']},{name:'팀선우',members:['김소연','이석주','이선우']},{name:'팀근규',members:['송이정','강승두','박근규']},{name:'팀재호',members:['윤동철','박  민','김재호']}]
 };
-var LG = {D:'D리그',P:'P리그'};
+var LG = {D:'D리그',P:'P리그',WC:'와카전',SF:'4강전',F:'결승전'};
+var TAG = {D:'D',P:'P',WC:'와카',SF:'4강',F:'결승'};
+var TBD = '미정';
+function isPO(lg){return lg==='WC'||lg==='SF'||lg==='F';}
+function kls(lg){return isPO(lg)?'K':lg;}
+function teamInfo(n){var all=TEAMS.D.concat(TEAMS.P);return all.filter(function(t){return t.name===n;})[0];}
+function teamOpts(lg,sel){
+  function o(n){return '<option'+(n===sel?' selected':'')+'>'+esc(n)+'</option>';}
+  if(!isPO(lg))return TEAMS[lg].map(function(t){return o(t.name);}).join('');
+  return o(TBD)+'<optgroup label="D리그">'+TEAMS.D.map(function(t){return o(t.name);}).join('')+'</optgroup><optgroup label="P리그">'+TEAMS.P.map(function(t){return o(t.name);}).join('')+'</optgroup>';
+}
 var S = {matches:[]}, loaded=false, loadErr='', month=null, openId=null, armDel=false, busy=false;
 var app = document.getElementById('app');
 
@@ -61,6 +71,7 @@ function vsHtml(m){
 function resultPill(m){
   if(m.r==='D')return '<span class="pill draw">무승부</span>';
   if(m.r)return '<span class="pill done">'+esc(short(winner(m)))+' 승</span>';
+  if(m.a===TBD||m.b===TBD)return '<span class="pill wait">팀 미정</span>';
   return '<span class="pill go">결과 입력</span>';
 }
 function monthsAvail(){
@@ -86,7 +97,7 @@ function calendarHtml(){
       if(m.r==='D')inner=N(m.a)+'·<wbr>'+N(m.b)+' <span class="dw nm">무</span>';
       else if(m.r)inner='<span class="wn nm">'+esc(short(w))+' 승</span> '+N(w===m.a?m.b:m.a,'ls');
       else inner=N(m.a)+'·<wbr>'+N(m.b);
-      h+='<button class="chip '+m.lg+'" data-id="'+esc(m.id)+'" aria-label="'+esc(LG[m.lg]+' '+m.a+' 대 '+m.b)+'"><span class="t">'+m.lg+' '+m.time+'</span>'+inner+'</button>';
+      h+='<button class="chip '+kls(m.lg)+'" data-id="'+esc(m.id)+'" aria-label="'+esc(LG[m.lg]+' '+m.a+' 대 '+m.b)+'"><span class="t">'+TAG[m.lg]+' '+m.time+'</span>'+inner+'</button>';
     });
     h+='</div>';
   }
@@ -107,16 +118,15 @@ function listHtml(){
   if(!order.length)return '<p class="empty">'+(loaded?'등록된 경기가 없습니다.':'경기 일정을 불러오는 중…')+'</p>';
   return order.map(function(ds){
     return '<div class="dgroup"><div class="date-h"><b>'+(+ds.slice(5,7))+'/'+(+ds.slice(8,10))+'</b><span>('+wd(ds)+')</span>'+(ds===t?'<span class="td">오늘</span>':'')+'</div><div class="rows">'+
-      groups[ds].map(function(m){return '<button class="row" data-id="'+esc(m.id)+'"><span class="tm">'+m.time+'</span><span class="tag '+m.lg+'">'+m.lg+'</span><span class="vs">'+vsHtml(m)+'</span>'+resultPill(m)+'</button>';}).join('')+
+      groups[ds].map(function(m){return '<button class="row" data-id="'+esc(m.id)+'"><span class="tm">'+m.time+'</span><span class="tag '+kls(m.lg)+'">'+TAG[m.lg]+'</span><span class="vs">'+vsHtml(m)+'</span>'+resultPill(m)+'</button>';}).join('')+
     '</div></div>';
   }).join('');
 }
 
 function addHtml(){
-  var opts=function(lg){return TEAMS[lg].map(function(t){return '<option>'+esc(t.name)+'</option>';}).join('');};
-  return '<section><div class="sec-h"><h2>경기 추가</h2><span class="sub">새로 잡힌 경기를 넣으면 달력·공지에 바로 들어갑니다</span></div>'+
-  '<form class="add" id="addf"><label>리그<select id="add-lg"><option value="D">D리그</option><option value="P">P리그</option></select></label><label>날짜<input id="add-date" type="date" value="2026-12-01" required></label>'+
-  '<label>팀1<select id="add-a">'+opts('D')+'</select></label><label>팀2<select id="add-b">'+opts('D')+'</select></label>'+
+  return '<section><div class="sec-h"><h2>경기 추가</h2><span class="sub">리그 경기와 와카전·4강전·결승전을 넣을 수 있어요. 대진이 아직 안 정해졌으면 팀을 미정으로 두세요</span></div>'+
+  '<form class="add" id="addf"><label>리그<select id="add-lg"><option value="D">D리그</option><option value="P">P리그</option><option value="WC">와카전</option><option value="SF">4강전</option><option value="F">결승전</option></select></label><label>날짜<input id="add-date" type="date" value="2026-12-01" required></label>'+
+  '<label>팀1<select id="add-a">'+teamOpts('D')+'</select></label><label>팀2<select id="add-b">'+teamOpts('D')+'</select></label>'+
   '<label class="full">시간<input id="add-time" type="time" value="20:00" step="1800" required></label>'+
   '<button class="btn main full" type="submit">경기 추가</button></form></section>';
 }
@@ -129,7 +139,7 @@ function render(){
    '<span class="mode">경기를 누르고 승·무·패를 고르면 바로 저장돼요 (입력 PIN 필요)</span>'+
    (loadErr?'<p class="err">'+esc(loadErr)+'</p>':'')+'</div>'+
    '<section><div class="sec-h"><h2>순위표</h2><span class="sub">입력된 결과로 자동 계산</span></div><div class="tables">'+tableHtml('D')+tableHtml('P')+'</div></section>'+
-   '<section><div class="sec-h"><h2>경기 달력</h2><div class="legend"><span><i style="background:var(--d)"></i>D리그</span><span><i style="background:var(--p)"></i>P리그</span><span><i style="background:var(--today)"></i>오늘</span></div></div>'+calendarHtml()+'</section>'+
+   '<section><div class="sec-h"><h2>경기 달력</h2><div class="legend"><span><i style="background:var(--d)"></i>D리그</span><span><i style="background:var(--p)"></i>P리그</span><span><i style="background:var(--k)"></i>와카·4강·결승</span><span><i style="background:var(--today)"></i>오늘</span></div></div>'+calendarHtml()+'</section>'+
    '<section><div class="sec-h"><h2>경기 일정·결과</h2><span class="sub">'+done+' / '+S.matches.length+'경기 종료</span></div><div class="list">'+listHtml()+'</div></section>'+
    '<section><div class="sec-h"><h2>공지용 텍스트</h2></div><div class="notice"><p class="sub" style="margin:0">단체방에 그대로 붙여넣을 수 있는 형식입니다. 결과를 입력하면 순위와 결과가 자동으로 바뀝니다.</p><button class="btn main" id="copy">공지 텍스트 복사</button><textarea id="ntext" readonly aria-label="공지 텍스트">'+esc(noticeText())+'</textarea></div></section>'+
    addHtml()+
@@ -143,13 +153,15 @@ function sheet(id){
   openId=id; armDel=false;
   var m=byId(id), old=document.querySelector('.scrim'); if(old)old.remove();
   if(!m){openId=null;return;}
-  var ta=TEAMS[m.lg].filter(function(t){return t.name===m.a;})[0],tb=TEAMS[m.lg].filter(function(t){return t.name===m.b;})[0];
+  var ta=teamInfo(m.a),tb=teamInfo(m.b),tbd=(m.a===TBD||m.b===TBD);
   var d=new Date(m.date+'T00:00:00');
   var h='<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="경기 결과">'+
-    '<div class="meta"><span class="tag '+m.lg+'">'+LG[m.lg]+'</span>'+(d.getMonth()+1)+'월 '+d.getDate()+'일 ('+wd(m.date)+') '+korTime(m.time)+'</div>'+
+    '<div class="meta"><span class="tag '+kls(m.lg)+'">'+LG[m.lg]+'</span>'+(d.getMonth()+1)+'월 '+d.getDate()+'일 ('+wd(m.date)+') '+korTime(m.time)+'</div>'+
     '<div class="big">'+esc(m.a)+'<span class="x">vs</span>'+esc(m.b)+'</div>'+
     '<div class="members"><div>'+esc(ta?ta.members.join(', '):'')+'</div><div style="text-align:right">'+esc(tb?tb.members.join(', '):'')+'</div></div>'+
-    '<div class="choice"><button data-r="A" class="'+(m.r==='A'?'on':'')+'">'+esc(m.a)+'<small>승</small></button><button data-r="D" class="mid '+(m.r==='D'?'on':'')+'">무<small>무승부</small></button><button data-r="B" class="'+(m.r==='B'?'on':'')+'">'+esc(m.b)+'<small>승</small></button></div>'+
+    (tbd?'<p class="sub" style="margin:0">대진이 정해지면 아래에서 팀을 고르고 팀 저장을 누르세요. 그다음 결과를 입력할 수 있어요.</p>':
+    '<div class="choice"><button data-r="A" class="'+(m.r==='A'?'on':'')+'">'+esc(m.a)+'<small>승</small></button><button data-r="D" class="mid '+(m.r==='D'?'on':'')+'">무<small>무승부</small></button><button data-r="B" class="'+(m.r==='B'?'on':'')+'">'+esc(m.b)+'<small>승</small></button></div>')+
+    (isPO(m.lg)?'<div class="teamedit"><select id="ed-a" aria-label="팀1">'+teamOpts(m.lg,m.a)+'</select><select id="ed-b" aria-label="팀2">'+teamOpts(m.lg,m.b)+'</select><button class="btn ghost" id="saveteams">팀 저장</button></div>':'')+
     (getPin()?'':'<label class="pinl">입력 PIN<input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="숫자 4자리"></label>')+
     '<div class="btns"><button class="btn ghost" data-close style="flex:1">닫기</button>'+(m.r?'<button class="btn danger" data-r="">결과 지우기</button>':'')+'<button class="btn danger" id="delm">경기 삭제</button></div>'+
     '</div></div>';
@@ -200,6 +212,11 @@ document.addEventListener('click',function(e){
     var msg=v===null?'결과를 지웠어요':v==='D'?'무승부로 저장했어요':(v==='A'?m.a:m.b)+' 승으로 저장했어요';
     send({pin:pin,op:'result',id:m.id,r:v},msg);return;
   }
+  if(t.id==='saveteams'&&openId){
+    var ea=document.getElementById('ed-a').value,eb=document.getElementById('ed-b').value,pin3=pinFromSheet(); if(!pin3)return;
+    if(ea===eb&&ea!==TBD){toast('서로 다른 두 팀을 골라 주세요');return;}
+    send({pin:pin3,op:'teams',id:openId,a:ea,b:eb},'대진을 저장했어요');return;
+  }
   if(t.id==='delm'&&openId){
     var pin2=pinFromSheet(); if(!pin2)return;
     if(!armDel){armDel=true;t.textContent='한 번 더 누르면 삭제';return;}
@@ -214,7 +231,7 @@ document.addEventListener('click',function(e){
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSheet();});
 document.addEventListener('change',function(e){
   if(e.target.id==='add-lg'){
-    var o=TEAMS[e.target.value].map(function(t){return '<option>'+esc(t.name)+'</option>';}).join('');
+    var o=teamOpts(e.target.value);
     document.getElementById('add-a').innerHTML=o;document.getElementById('add-b').innerHTML=o;
   }
 });
@@ -222,7 +239,7 @@ document.addEventListener('submit',function(e){
   if(e.target.id!=='addf')return; e.preventDefault();
   var lg=document.getElementById('add-lg').value,a=document.getElementById('add-a').value,b=document.getElementById('add-b').value,
       ds=document.getElementById('add-date').value,tm=document.getElementById('add-time').value;
-  if(a===b){toast('서로 다른 두 팀을 골라 주세요');return;}
+  if(a===b&&a!==TBD){toast('서로 다른 두 팀을 골라 주세요');return;}
   if(!ds||!tm){toast('날짜와 시간을 넣어 주세요');return;}
   var pin=getPin();
   if(!pin){
