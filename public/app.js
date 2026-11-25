@@ -7,6 +7,11 @@ var TEAMS = {
 var LG = {D:'D리그',P:'P리그',WC:'와카전',SF:'4강전',F:'결승전'};
 var TAG = {D:'D',P:'P',WC:'와카',SF:'4강',F:'결승'};
 var TBD = '미정';
+var COURSES = ['스릭슨브레이브(스릭슨/젝시오)','포도cc(포도/자두)','스카이뷰cc','장수cc','하이원cc','세종에머슨cc(레이크/밸리)','소피아그린(세종/여강)','골프존카운티 안성H'];
+var WHEEL_LABEL = ['스릭슨브레이브','포도cc','스카이뷰cc','장수cc','하이원cc','세종에머슨cc','소피아그린','안성H'];
+function lastSpin(){try{return JSON.parse(localStorage.getItem('dpga-spin')||'null');}catch(_){return null;}}
+var wheelRot = (lastSpin()&&typeof lastSpin().rot==='number')?lastSpin().rot:-22.5, spinning = false;
+function saveSpin(v){try{localStorage.setItem('dpga-spin',JSON.stringify(v));}catch(_){}}
 function isPO(lg){return lg==='WC'||lg==='SF'||lg==='F';}
 function kls(lg){return isPO(lg)?'K':lg;}
 function teamInfo(n){var all=TEAMS.D.concat(TEAMS.P);return all.filter(function(t){return t.name===n;})[0];}
@@ -131,6 +136,58 @@ function addHtml(){
   '<button class="btn main full" type="submit">경기 추가</button></form></section>';
 }
 
+/* ---- course roulette: runs only in this browser, nothing is saved to the server ---- */
+function spinResultHtml(){
+  var l=lastSpin();
+  if(!l)return '버튼을 누르면 코스 8개 중 하나가 무작위로 정해져요';
+  return '결과: <b>'+esc(l.course)+'</b><small>'+esc(l.at)+'</small>';
+}
+function rouletteHtml(){
+  return '<section id="roulette"><div class="sec-h"><h2>코스 룰렛</h2><span class="sub">대회 당일 코스를 무작위로 정해요</span></div>'+
+   '<div class="roul"><div class="wheelbox"><div class="pointer" aria-hidden="true"></div><canvas id="wheel" width="560" height="560" role="img" aria-label="코스 8개 룰렛"></canvas></div>'+
+   '<p class="spinres" id="spin-result" aria-live="polite">'+spinResultHtml()+'</p>'+
+   '<button class="btn main" id="spin"'+(spinning?' disabled':'')+'>룰렛 돌리기</button>'+
+   '<ol class="courses">'+COURSES.map(function(c){return '<li>'+esc(c)+'</li>';}).join('')+'</ol></div></section>';
+}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function drawWheel(){
+  var c=document.getElementById('wheel'); if(!c)return;
+  var g=c.getContext('2d'),n=WHEEL_LABEL.length,R=c.width/2,seg=2*Math.PI/n;
+  var fills=[cssVar('--turf'),cssVar('--d'),cssVar('--p'),cssVar('--k')];
+  g.clearRect(0,0,c.width,c.height);
+  for(var i=0;i<n;i++){
+    var a0=-Math.PI/2+i*seg;
+    g.beginPath();g.moveTo(R,R);g.arc(R,R,R-6,a0,a0+seg);g.closePath();
+    g.fillStyle=fills[i%4];g.fill();g.lineWidth=3;g.strokeStyle=cssVar('--surface');g.stroke();
+    g.save();g.translate(R,R);g.rotate(a0+seg/2);g.textAlign='right';g.textBaseline='middle';
+    g.fillStyle='#ffffff';g.font='700 26px "IBM Plex Sans KR", sans-serif';
+    g.fillText(WHEEL_LABEL[i],R-26,0);g.restore();
+  }
+  g.beginPath();g.arc(R,R,34,0,2*Math.PI);g.fillStyle=cssVar('--surface');g.fill();
+  c.style.transition='none';c.style.transform='rotate('+wheelRot+'deg)';
+}
+function doSpin(){
+  if(spinning)return;
+  var n=WHEEL_LABEL.length,seg=360/n,pick;
+  try{var u=new Uint32Array(1);crypto.getRandomValues(u);pick=u[0]%n;}catch(_){pick=Math.floor(Math.random()*n);}
+  var target=-(pick*seg+seg/2)+(Math.random()-.5)*seg*0.6;
+  var final=wheelRot+5*360+(((target-wheelRot)%360)+360)%360;
+  var c=document.getElementById('wheel'),btn=document.getElementById('spin');
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var d=new Date();
+  var done=function(){
+    wheelRot=final%360;spinning=false;
+    saveSpin({course:COURSES[pick],rot:wheelRot,at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림'});
+    var r=document.getElementById('spin-result');if(r)r.innerHTML=spinResultHtml();
+    if(btn)btn.disabled=false;toast(COURSES[pick]+' 당첨!');
+  };
+  spinning=true;if(btn)btn.disabled=true;
+  var r0=document.getElementById('spin-result');if(r0)r0.textContent='돌아가는 중…';
+  if(!c||reduce){done();return;}
+  c.style.transition='transform 4.2s cubic-bezier(.12,.72,.12,1)';c.style.transform='rotate('+final+'deg)';
+  setTimeout(done,4300);
+}
+
 function render(){
   var y=window.scrollY;
   var done=S.matches.filter(function(m){return m.r;}).length;
@@ -140,12 +197,14 @@ function render(){
    (loadErr?'<p class="err">'+esc(loadErr)+'</p>':'')+'</div>'+
    '<section><div class="sec-h"><h2>순위표</h2><span class="sub">입력된 결과로 자동 계산</span></div><div class="tables">'+tableHtml('D')+tableHtml('P')+'</div></section>'+
    '<section><div class="sec-h"><h2>경기 달력</h2><div class="legend"><span><i style="background:var(--d)"></i>D리그</span><span><i style="background:var(--p)"></i>P리그</span><span><i style="background:var(--k)"></i>와카·4강·결승</span><span><i style="background:var(--today)"></i>오늘</span></div></div>'+calendarHtml()+'</section>'+
+   rouletteHtml()+
    '<section><div class="sec-h"><h2>경기 일정·결과</h2><span class="sub">'+done+' / '+S.matches.length+'경기 종료</span></div><div class="list">'+listHtml()+'</div></section>'+
    '<section><div class="sec-h"><h2>공지용 텍스트</h2></div><div class="notice"><p class="sub" style="margin:0">단체방에 그대로 붙여넣을 수 있는 형식입니다. 결과를 입력하면 순위와 결과가 자동으로 바뀝니다.</p><button class="btn main" id="copy">공지 텍스트 복사</button><textarea id="ntext" readonly aria-label="공지 텍스트">'+esc(noticeText())+'</textarea></div></section>'+
    addHtml()+
    (getPin()?'<p class="sub" style="text-align:center">이 기기에 입력 PIN이 저장돼 있어요 · <button class="linkb" id="forget">PIN 지우기</button></p>':'')+
   '</div>';
   window.scrollTo(0,y);
+  drawWheel();
   if(openId)sheet(openId);
 }
 
@@ -175,7 +234,7 @@ function toast(msg){if(tEl)tEl.remove();tEl=document.createElement('div');tEl.cl
 
 function load(){
   return fetch('/api/state',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error();return r.json();})
-  .then(function(j){S.matches=j.matches||[];loaded=true;loadErr='';if(!busy)render();})
+  .then(function(j){S.matches=j.matches||[];loaded=true;loadErr='';if(!busy&&!spinning)render();})
   .catch(function(){loadErr='결과를 불러오지 못했어요. 잠시 후 새로고침해 주세요.';render();});
 }
 
@@ -212,6 +271,7 @@ document.addEventListener('click',function(e){
     var msg=v===null?'결과를 지웠어요':v==='D'?'무승부로 저장했어요':(v==='A'?m.a:m.b)+' 승으로 저장했어요';
     send({pin:pin,op:'result',id:m.id,r:v},msg);return;
   }
+  if(t.id==='spin'){doSpin();return;}
   if(t.id==='saveteams'&&openId){
     var ea=document.getElementById('ed-a').value,eb=document.getElementById('ed-b').value,pin3=pinFromSheet(); if(!pin3)return;
     if(ea===eb&&ea!==TBD){toast('서로 다른 두 팀을 골라 주세요');return;}
@@ -252,6 +312,6 @@ document.addEventListener('submit',function(e){
 
 var t0=todayStr().slice(0,7); month=monthsAvail().indexOf(t0)>=0?t0:'2026-11';
 render(); load();
-setInterval(function(){if(!document.hidden&&!openId&&!busy)load();},20000);
+setInterval(function(){if(!document.hidden&&!openId&&!busy&&!spinning)load();},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&!openId)load();});
 })();
