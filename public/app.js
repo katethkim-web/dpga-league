@@ -197,11 +197,11 @@ function render(){
    (loadErr?'<p class="err">'+esc(loadErr)+'</p>':'')+'</div>'+
    '<section><div class="sec-h"><h2>순위표</h2><span class="sub">입력된 결과로 자동 계산</span></div><div class="tables">'+tableHtml('D')+tableHtml('P')+'</div></section>'+
    '<section><div class="sec-h"><h2>경기 달력</h2><div class="legend"><span><i style="background:var(--d)"></i>D리그</span><span><i style="background:var(--p)"></i>P리그</span><span><i style="background:var(--k)"></i>와카·4강·결승</span><span><i style="background:var(--today)"></i>오늘</span></div></div>'+calendarHtml()+'</section>'+
-   rouletteHtml()+
    '<section><div class="sec-h"><h2>경기 일정·결과</h2><span class="sub">'+done+' / '+S.matches.length+'경기 종료</span></div><div class="list">'+listHtml()+'</div></section>'+
    '<section><div class="sec-h"><h2>공지용 텍스트</h2></div><div class="notice"><p class="sub" style="margin:0">단체방에 그대로 붙여넣을 수 있는 형식입니다. 결과를 입력하면 순위와 결과가 자동으로 바뀝니다.</p><button class="btn main" id="copy">공지 텍스트 복사</button><textarea id="ntext" readonly aria-label="공지 텍스트">'+esc(noticeText())+'</textarea></div></section>'+
    addHtml()+
    (getPin()?'<p class="sub" style="text-align:center">이 기기에 입력 PIN이 저장돼 있어요 · <button class="linkb" id="forget">PIN 지우기</button></p>':'')+
+  rouletteHtml()+
   '</div>';
   window.scrollTo(0,y);
   drawWheel();
