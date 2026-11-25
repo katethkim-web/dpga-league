@@ -10,7 +10,13 @@ var TBD = '미정';
 var COURSES = ['스릭슨브레이브(스릭슨/젝시오)','포도cc(포도/자두)','스카이뷰cc','장수cc','하이원cc','세종에머슨cc(레이크/밸리)','소피아그린(세종/여강)','골프존카운티 안성H'];
 var WHEEL_LABEL = ['스릭슨브레이브','포도cc','스카이뷰cc','장수cc','하이원cc','세종에머슨cc','소피아그린','안성H'];
 function lastSpin(){try{return JSON.parse(localStorage.getItem('dpga-spin')||'null');}catch(_){return null;}}
-function restRot(){var l=lastSpin(),i=l?COURSES.indexOf(l.course):-1;return i<0?-22.5:-(i*45+22.5);}
+/* Each team excludes up to 2 courses, or picks 'none' (코스제외없음). null = not chosen yet. */
+var NONE = 'none';
+var ex = [null, null];
+(function(){var l=lastSpin();if(l&&Array.isArray(l.ex)&&l.ex.length===2)ex=l.ex;})();
+function pool(){var out=[];for(var i=0;i<COURSES.length;i++){if(!exList(0).concat(exList(1)).some(function(x){return x===i;}))out.push(i);}return out;}
+function exList(t){return Array.isArray(ex[t])?ex[t]:[];}
+function restRot(){var l=lastSpin(),pl=pool(),seg=360/pl.length,k=l?pl.indexOf(COURSES.indexOf(l.course)):-1;return k<0?-seg/2:-(k*seg+seg/2);}
 var wheelRot = restRot(), spinning = false;
 function saveSpin(v){try{localStorage.setItem('dpga-spin',JSON.stringify(v));}catch(_){}}
 function isPO(lg){return lg==='WC'||lg==='SF'||lg==='F';}
@@ -138,32 +144,60 @@ function addHtml(){
 }
 
 /* ---- course roulette: runs only in this browser, nothing is saved to the server ---- */
+function exChipsHtml(t){
+  var sel=ex[t],h='';
+  COURSES.forEach(function(c,i){var on=Array.isArray(sel)&&sel.indexOf(i)>=0;h+='<button class="exchip'+(on?' on':'')+'" data-ex="'+t+'" data-i="'+i+'" aria-pressed="'+on+'">'+esc(WHEEL_LABEL[i])+'</button>';});
+  h+='<button class="exchip none'+(sel===NONE?' on':'')+'" data-ex="'+t+'" data-i="none" aria-pressed="'+(sel===NONE)+'">코스제외없음</button>';
+  return h;
+}
+function exSummary(t){var s=ex[t];if(s===NONE)return '제외 없음';if(!s||!s.length)return '아직 안 고름';return s.map(function(i){return WHEEL_LABEL[i];}).join(', ')+' 제외';}
+function ready(){return ex.every(function(s){return s===NONE||(Array.isArray(s)&&s.length>0);});}
 function spinResultHtml(){
   var l=lastSpin();
-  if(!l)return '버튼을 누르면 코스 8개 중 하나가 무작위로 정해져요';
-  return '결과: <b>'+esc(l.course)+'</b><small>'+esc(l.at)+'</small>';
+  if(l&&l.ex&&JSON.stringify(l.ex)===JSON.stringify(ex))return '결과: <b>'+esc(l.course)+'</b><small>'+esc(l.at)+'</small>';
+  return ready()?'남은 코스 '+pool().length+'개로 돌릴 준비가 됐어요':'두 팀 모두 제외할 코스를 골라 주세요 (팀마다 최대 2개)';
 }
 function rouletteHtml(){
-  return '<section id="roulette"><div class="sec-h"><h2>코스 룰렛</h2><span class="sub">대회 당일 코스를 무작위로 정해요</span></div>'+
-   '<div class="roul"><div class="wheelbox"><div class="pointer" aria-hidden="true"></div><canvas id="wheel" width="560" height="560" role="img" aria-label="코스 8개 룰렛"></canvas></div>'+
+  return '<section id="roulette"><div class="sec-h"><h2>코스 룰렛</h2><span class="sub">팀마다 코스를 최대 2개 빼고 돌려요</span></div>'+
+   '<div class="roul">'+
+   [0,1].map(function(t){return '<div class="exbox"><div class="exhead"><b>'+(t+1)+'팀 제외 코스</b><span id="exsum'+t+'">'+esc(exSummary(t))+'</span></div><div class="exchips">'+exChipsHtml(t)+'</div></div>';}).join('')+
+   '<div class="wheelbox"><div class="pointer" aria-hidden="true"></div><canvas id="wheel" width="560" height="560" role="img" aria-label="코스 룰렛"></canvas></div>'+
    '<p class="spinres" id="spin-result" aria-live="polite">'+spinResultHtml()+'</p>'+
-   '<button class="btn main" id="spin"'+(spinning?' disabled':'')+'>룰렛 돌리기</button>'+
+   '<div class="btns"><button class="btn main" id="spin" style="flex:1"'+(spinning||!ready()?' disabled':'')+'>룰렛 돌리기</button><button class="btn ghost" id="exreset">다시 고르기</button></div>'+
    '</div></section>';
+}
+function refreshRoulette(){
+  var sec=document.getElementById('roulette'); if(!sec)return;
+  var tmp=document.createElement('div');tmp.innerHTML=rouletteHtml();sec.replaceWith(tmp.firstChild);drawWheel();
+}
+function toggleEx(t,v){
+  if(spinning)return;
+  var cur=ex[t];
+  if(v===NONE){ex[t]=(cur===NONE)?null:NONE;}
+  else{
+    var i=+v,arr=Array.isArray(cur)?cur.slice():[];
+    var at=arr.indexOf(i);
+    if(at>=0)arr.splice(at,1);
+    else{if(arr.length>=2){toast('팀마다 최대 2개까지 뺄 수 있어요');return;}arr.push(i);arr.sort(function(a,b){return a-b;});}
+    ex[t]=arr.length?arr:null;
+  }
+  wheelRot=restRot();refreshRoulette();
 }
 function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
 function drawWheel(){
   var c=document.getElementById('wheel'); if(!c)return;
-  var g=c.getContext('2d'),n=WHEEL_LABEL.length,R=c.width/2,seg=2*Math.PI/n;
+  var pl=pool(),n=pl.length,g=c.getContext('2d'),R=c.width/2,seg=2*Math.PI/n;
   var fills=[cssVar('--turf'),cssVar('--d'),cssVar('--p'),cssVar('--k')];
   g.clearRect(0,0,c.width,c.height);
-  for(var i=0;i<n;i++){
-    var a0=-Math.PI/2+i*seg;
+  for(var k=0;k<n;k++){
+    var a0=-Math.PI/2+k*seg, col=k%4;
+    if(k===n-1&&col===0)col=2; /* keep the last slice from matching the first */
     g.beginPath();g.moveTo(R,R);g.arc(R,R,R-6,a0,a0+seg);g.closePath();
-    g.fillStyle=fills[i%4];g.fill();g.lineWidth=3;g.strokeStyle=cssVar('--surface');g.stroke();
+    g.fillStyle=fills[col];g.fill();g.lineWidth=3;g.strokeStyle=cssVar('--surface');g.stroke();
     var mid=a0+seg/2,left=Math.cos(mid+wheelRot*Math.PI/180)<-0.01; /* flip labels that sit on the left at rest so they read upright */
     g.save();g.translate(R,R);g.rotate(left?mid+Math.PI:mid);g.textBaseline='middle';
     g.fillStyle='#ffffff';g.font='700 26px "IBM Plex Sans KR", sans-serif';
-    if(left){g.textAlign='left';g.fillText(WHEEL_LABEL[i],-(R-26),0);}else{g.textAlign='right';g.fillText(WHEEL_LABEL[i],R-26,0);}
+    if(left){g.textAlign='left';g.fillText(WHEEL_LABEL[pl[k]],-(R-26),0);}else{g.textAlign='right';g.fillText(WHEEL_LABEL[pl[k]],R-26,0);}
     g.restore();
   }
   g.beginPath();g.arc(R,R,34,0,2*Math.PI);g.fillStyle=cssVar('--surface');g.fill();
@@ -171,20 +205,22 @@ function drawWheel(){
 }
 function doSpin(){
   if(spinning)return;
-  var n=WHEEL_LABEL.length,seg=360/n,pick;
-  try{var u=new Uint32Array(1);crypto.getRandomValues(u);pick=u[0]%n;}catch(_){pick=Math.floor(Math.random()*n);}
-  var target=-(pick*seg+seg/2)+(Math.random()-.5)*seg*0.6;
+  if(!ready()){toast('두 팀 모두 제외할 코스를 골라 주세요');return;}
+  var pl=pool(),n=pl.length,seg=360/n,k;
+  try{var u=new Uint32Array(1);crypto.getRandomValues(u);k=u[0]%n;}catch(_){k=Math.floor(Math.random()*n);}
+  var course=COURSES[pl[k]];
+  var target=-(k*seg+seg/2)+(Math.random()-.5)*seg*0.6;
   var final=wheelRot+5*360+(((target-wheelRot)%360)+360)%360;
   var c=document.getElementById('wheel'),btn=document.getElementById('spin');
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   var d=new Date();
   var done=function(){
-    wheelRot=final%360;spinning=false;drawWheel();
-    saveSpin({course:COURSES[pick],at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림'});
-    var r=document.getElementById('spin-result');if(r)r.innerHTML=spinResultHtml();
-    if(btn)btn.disabled=false;toast(COURSES[pick]+' 당첨!');
+    wheelRot=final%360;spinning=false;
+    saveSpin({course:course,ex:ex,at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림 · 1팀 '+exSummary(0)+' · 2팀 '+exSummary(1)});
+    refreshRoulette();toast(course+' 당첨!');
   };
   spinning=true;if(btn)btn.disabled=true;
+  document.querySelectorAll('.exchip').forEach(function(b){b.disabled=true;});
   var r0=document.getElementById('spin-result');if(r0)r0.textContent='돌아가는 중…';
   if(!c||reduce){done();return;}
   c.style.transition='transform 4.2s cubic-bezier(.12,.72,.12,1)';c.style.transform='rotate('+final+'deg)';
@@ -275,6 +311,8 @@ document.addEventListener('click',function(e){
     send({pin:pin,op:'result',id:m.id,r:v},msg);return;
   }
   if(t.id==='spin'){doSpin();return;}
+  var xc=t.closest('[data-ex]'); if(xc){toggleEx(+xc.dataset.ex,xc.dataset.i);return;}
+  if(t.id==='exreset'){if(spinning)return;ex=[null,null];wheelRot=restRot();refreshRoulette();return;}
   if(t.id==='saveteams'&&openId){
     var ea=document.getElementById('ed-a').value,eb=document.getElementById('ed-b').value,pin3=pinFromSheet(); if(!pin3)return;
     if(ea===eb&&ea!==TBD){toast('서로 다른 두 팀을 골라 주세요');return;}

@@ -152,6 +152,16 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-a
 .spinres{margin:0;text-align:center;font-size:16px}
 .spinres b{color:var(--turf);font-size:20px}
 .spinres small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.exbox{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.exhead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:14px}
+.exhead span{color:var(--muted);font-size:13px}
+.exchips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.exchip{border:1.5px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:8px 4px;font:inherit;font-size:13px;cursor:pointer;word-break:keep-all;line-height:1.25}
+.exchip.on{border-color:var(--loss);background:var(--surface);color:var(--loss);font-weight:700;text-decoration:line-through}
+.exchip.none{grid-column:span 3}
+.exchip.none.on{border-color:var(--turf);color:var(--turf);text-decoration:none}
+.exchip:disabled{opacity:.6;cursor:default}
+.btn:disabled{opacity:.5;cursor:default}
 .pinl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
 .pinl input{font:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);width:100%;letter-spacing:.2em}
 </style>
