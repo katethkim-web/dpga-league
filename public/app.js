@@ -10,7 +10,8 @@ var TBD = '미정';
 var COURSES = ['스릭슨브레이브(스릭슨/젝시오)','포도cc(포도/자두)','스카이뷰cc','장수cc','하이원cc','세종에머슨cc(레이크/밸리)','소피아그린(세종/여강)','골프존카운티 안성H'];
 var WHEEL_LABEL = ['스릭슨브레이브','포도cc','스카이뷰cc','장수cc','하이원cc','세종에머슨cc','소피아그린','안성H'];
 function lastSpin(){try{return JSON.parse(localStorage.getItem('dpga-spin')||'null');}catch(_){return null;}}
-var wheelRot = (lastSpin()&&typeof lastSpin().rot==='number')?lastSpin().rot:-22.5, spinning = false;
+function restRot(){var l=lastSpin(),i=l?COURSES.indexOf(l.course):-1;return i<0?-22.5:-(i*45+22.5);}
+var wheelRot = restRot(), spinning = false;
 function saveSpin(v){try{localStorage.setItem('dpga-spin',JSON.stringify(v));}catch(_){}}
 function isPO(lg){return lg==='WC'||lg==='SF'||lg==='F';}
 function kls(lg){return isPO(lg)?'K':lg;}
@@ -147,7 +148,7 @@ function rouletteHtml(){
    '<div class="roul"><div class="wheelbox"><div class="pointer" aria-hidden="true"></div><canvas id="wheel" width="560" height="560" role="img" aria-label="코스 8개 룰렛"></canvas></div>'+
    '<p class="spinres" id="spin-result" aria-live="polite">'+spinResultHtml()+'</p>'+
    '<button class="btn main" id="spin"'+(spinning?' disabled':'')+'>룰렛 돌리기</button>'+
-   '<ol class="courses">'+COURSES.map(function(c){return '<li>'+esc(c)+'</li>';}).join('')+'</ol></div></section>';
+   '</div></section>';
 }
 function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
 function drawWheel(){
@@ -159,9 +160,11 @@ function drawWheel(){
     var a0=-Math.PI/2+i*seg;
     g.beginPath();g.moveTo(R,R);g.arc(R,R,R-6,a0,a0+seg);g.closePath();
     g.fillStyle=fills[i%4];g.fill();g.lineWidth=3;g.strokeStyle=cssVar('--surface');g.stroke();
-    g.save();g.translate(R,R);g.rotate(a0+seg/2);g.textAlign='right';g.textBaseline='middle';
+    var mid=a0+seg/2,left=Math.cos(mid+wheelRot*Math.PI/180)<-0.01; /* flip labels that sit on the left at rest so they read upright */
+    g.save();g.translate(R,R);g.rotate(left?mid+Math.PI:mid);g.textBaseline='middle';
     g.fillStyle='#ffffff';g.font='700 26px "IBM Plex Sans KR", sans-serif';
-    g.fillText(WHEEL_LABEL[i],R-26,0);g.restore();
+    if(left){g.textAlign='left';g.fillText(WHEEL_LABEL[i],-(R-26),0);}else{g.textAlign='right';g.fillText(WHEEL_LABEL[i],R-26,0);}
+    g.restore();
   }
   g.beginPath();g.arc(R,R,34,0,2*Math.PI);g.fillStyle=cssVar('--surface');g.fill();
   c.style.transition='none';c.style.transform='rotate('+wheelRot+'deg)';
@@ -176,8 +179,8 @@ function doSpin(){
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   var d=new Date();
   var done=function(){
-    wheelRot=final%360;spinning=false;
-    saveSpin({course:COURSES[pick],rot:wheelRot,at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림'});
+    wheelRot=final%360;spinning=false;drawWheel();
+    saveSpin({course:COURSES[pick],at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림'});
     var r=document.getElementById('spin-result');if(r)r.innerHTML=spinResultHtml();
     if(btn)btn.disabled=false;toast(COURSES[pick]+' 당첨!');
   };
