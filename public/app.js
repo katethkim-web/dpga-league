@@ -151,11 +151,12 @@ function exChipsHtml(t){
   return h;
 }
 function exSummary(t){var s=ex[t];if(s===NONE)return '제외 없음';if(!s||!s.length)return '아직 안 고름';return s.map(function(i){return WHEEL_LABEL[i];}).join(', ')+' 제외';}
-function ready(){return ex.every(function(s){return s===NONE||(Array.isArray(s)&&s.length>0);});}
+/* Spinning is allowed once either team has chosen anything (코스제외없음 alone is enough); an unchosen team excludes nothing. No PIN. */
+function ready(){return ex.some(function(s){return s===NONE||(Array.isArray(s)&&s.length>0);});}
 function spinResultHtml(){
   var l=lastSpin();
   if(l&&l.ex&&JSON.stringify(l.ex)===JSON.stringify(ex))return '결과: <b>'+esc(l.course)+'</b><small>'+esc(l.at)+'</small>';
-  return ready()?'남은 코스 '+pool().length+'개로 돌릴 준비가 됐어요':'두 팀 모두 제외할 코스를 골라 주세요 (팀마다 최대 2개)';
+  return ready()?'남은 코스 '+pool().length+'개로 돌릴 준비가 됐어요':'제외할 코스를 고르거나 코스제외없음을 눌러 주세요 (팀마다 최대 2개)';
 }
 function rouletteHtml(){
   return '<section id="roulette"><div class="sec-h"><h2>코스 룰렛</h2><span class="sub">팀마다 코스를 최대 2개 빼고 돌려요</span></div>'+
@@ -163,7 +164,7 @@ function rouletteHtml(){
    [0,1].map(function(t){return '<div class="exbox"><div class="exhead"><b>'+(t+1)+'팀 제외 코스</b><span id="exsum'+t+'">'+esc(exSummary(t))+'</span></div><div class="exchips">'+exChipsHtml(t)+'</div></div>';}).join('')+
    '<div class="wheelbox"><div class="pointer" aria-hidden="true"></div><div class="wheelclip"><canvas id="wheel" width="560" height="560" role="img" aria-label="코스 룰렛"></canvas></div></div>'+
    '<p class="spinres" id="spin-result" aria-live="polite">'+spinResultHtml()+'</p>'+
-   '<div class="btns"><button class="btn main" id="spin" style="flex:1"'+(spinning||!ready()?' disabled':'')+'>룰렛 돌리기</button><button class="btn ghost" id="exreset">다시 고르기</button></div>'+
+   '<div class="btns"><button class="btn main" id="spin" style="flex:1"'+(spinning?' disabled':'')+'>룰렛 돌리기</button><button class="btn ghost" id="exreset">다시 고르기</button></div>'+
    '</div></section>';
 }
 function refreshRoulette(){
@@ -205,7 +206,7 @@ function drawWheel(){
 }
 function doSpin(){
   if(spinning)return;
-  if(!ready()){toast('두 팀 모두 제외할 코스를 골라 주세요');return;}
+  if(!ready()){toast('제외할 코스를 고르거나 코스제외없음을 눌러 주세요');return;}
   var pl=pool(),n=pl.length,seg=360/n,k;
   try{var u=new Uint32Array(1);crypto.getRandomValues(u);k=u[0]%n;}catch(_){k=Math.floor(Math.random()*n);}
   var course=COURSES[pl[k]];
@@ -216,7 +217,7 @@ function doSpin(){
   var d=new Date();
   var done=function(){
     wheelRot=final%360;spinning=false;
-    saveSpin({course:course,ex:ex,at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림 · 1팀 '+exSummary(0)+' · 2팀 '+exSummary(1)});
+    saveSpin({course:course,ex:ex,at:(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+'에 돌림 · 1팀 '+(ex[0]?exSummary(0):'제외 없음')+' · 2팀 '+(ex[1]?exSummary(1):'제외 없음')});
     refreshRoulette();toast(course+' 당첨!');
   };
   spinning=true;if(btn)btn.disabled=true;
